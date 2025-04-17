@@ -2,7 +2,7 @@
 
 This repository contains the code and data used in the study:
 
-**"The Relative Importance of Model Structure and Input Features for Water Supply Forecasting in Snow-Dominated River Basins of the Southwest US"**  
+**"The Relative Importance of Model Type and Input Features for Water Supply Forecasting in Snow-Dominated Basins in the Southwestern US"**  
 (*Submitted to* *The Journal of Hydrology: Regional Studies*)
 
 This study explores how model type and feature selection influence April–July (AMJJ) water supply forecast (WSF) skill in five snow-influenced watersheds in the southwestern United States. We compare five machine learning model types and introduce a new wrapper-based feature selection method—**Semi-Exhaustive Feature Search (SEFS)**—to identify the most predictive features for each basin–model type combination.
