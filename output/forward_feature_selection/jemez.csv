@@ -1,0 +1,16 @@
+,LinearRegression,PrincipalComponentRegression,SVR,RandomForestRegressor,ExtraTreesRegressor
+SNOTEL_SWE_M_0,0,7,7,7,3
+SNOTEL_SWE_A_0,2,2,8,4,2
+SNOTEL_PA_M_0,6,0,5,9,7
+SNOTEL_PA_A_0,10,5,2,2,6
+SNOTEL_SWE_M_1,0,0,9,0,5
+SNOTEL_SWE_A_1,0,4,6,10,0
+SNOTEL_PA_M_1,7,9,3,5,0
+SNOTEL_PA_A_1,1,1,1,1,1
+SPFH_mean,3,3,4,0,0
+TMP_mean,9,0,0,0,4
+WIND_mean,0,10,0,0,0
+SOI,0,8,0,0,9
+PDO,5,0,10,3,0
+NAO,8,0,0,8,10
+AMO,4,6,0,6,8
