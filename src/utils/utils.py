@@ -445,7 +445,6 @@ def init_swe_only_results_dict() -> Dict[str, List[Any]]:
 
 
 def lolipop_plot(ax, regressors, data_a, data_b, color_a, color_b, label_a, label_b, ylims, yticks, invert_y=False):
-
     xpositions = np.arange(len(regressors))
     xlabels = [regressor_titles[regressor] for regressor in regressors]
 
@@ -474,6 +473,7 @@ def lolipop_plot(ax, regressors, data_a, data_b, color_a, color_b, label_a, labe
         label=label_b,
         zorder=3
     )
+    ax.set_xlim((-0.3, 4.3))
     ax.set_xticks(xpositions)
     ax.set_xticklabels(labels=xlabels, ha='center')
     ax.set_ylim(ylims)
@@ -505,26 +505,27 @@ def add_scatter_values(ax, xpositions, mins, maxs, invert):
     for x, y in zip(xpositions, maxs):
 
         if (ymax - y) / yrange < 0.17:
-            x = x + 0.26
-            yposition = y - 0.02 * yrange if not invert else y + 0.16 * yrange
+            x = x + 0.28
+            yposition = y - 0.02 * yrange if not invert else y + 0.18 * yrange
         else:
             x = x
-            yposition = y + 0.025 * yrange if not invert else y + 0.13 * yrange
-        ax.text(x=x, y=yposition, s=f'{y:.2f}', ha='center', va='bottom', fontsize=12)
+            yposition = y + 0.025 * yrange if not invert else y + 0.15 * yrange
+        ax.text(x=x, y=yposition, s=f'{y:.2f}', ha='center', va='bottom', fontsize=14)
 
     # Min labels
     for x, y in zip(xpositions, mins):
 
-        if (y - ymin) / yrange < 0.05:
-            x = x + 0.26
-            yposition = y + 0.07 * yrange if not invert else y + 0.01 * yrange
+        if (y - ymin) / yrange < 0.09:
+            x = x + 0.28
+            yposition = y + 0.07 * yrange if not invert else y + 0.03 * yrange
         elif (y - ymin) / yrange < 0.15:
-            x = x + 0.26
-            yposition = y + 0.07 * yrange if not invert else y - 0.06 * yrange
+            x = x + 0.28
+            yposition = y + 0.07 * yrange if not invert else y - 0.08 * yrange
         else:
             x = x
-            yposition = y - 0.05 * yrange if not invert else y - 0.11 * yrange
-        ax.text(x=x, y=yposition, s=f'{y:.2f}', ha='center', va='top', fontsize=12)
+            yposition = y - 0.05 * yrange if not invert else y - 0.13 * yrange
+        ax.text(x=x, y=yposition, s=f'{y:.2f}', ha='center', va='top', fontsize=14)
+
 
 
 def reorder(basin, truths, best_preds, swe_preds):

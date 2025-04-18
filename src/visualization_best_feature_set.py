@@ -1,11 +1,14 @@
 import os
-import matplotlib.pyplot as plt
 from string import capwords
+
 import matplotlib
-from src.configs.regressors import regressors, regressor_titles
-from src.configs.basin_names import basins
-from src.utils.utils import get_ffs_order, get_ffs_iteration_scores, get_exhaustive_search_results
+import matplotlib.pyplot as plt
+
+from src.configs.basins import basins
 from src.configs.features import acronyms, colors
+from src.configs.regressors import regressors, regressor_titles
+from src.utils.data_loaders import get_exhaustive_search_results, get_ffs_order
+
 
 matplotlib.use('Qt5Agg')
 plt.rcParams.update({

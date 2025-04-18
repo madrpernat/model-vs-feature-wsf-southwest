@@ -3,11 +3,11 @@ from string import capwords
 
 import matplotlib
 import matplotlib.pyplot as plt
-import numpy as np
 
-from src.configs.basin_names import basins
+from src.configs.basins import basins
 from src.configs.regressors import regressors
-from src.utils.utils import get_best_and_fixed_scores, lolipop_plot
+from src.utils.data_loaders import get_best_and_fixed_scores
+from src.utils.utils import lolipop_plot
 
 matplotlib.use('Qt5Agg')
 plt.rcParams.update({
