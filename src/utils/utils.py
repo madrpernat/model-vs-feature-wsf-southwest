@@ -13,6 +13,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 
 from src.configs.regressors import regressor_titles
+from src.utils.data_loaders import load_all_features_target_data, get_best_and_fixed_preds, get_years
 
 
 def nested_cross_validation(
@@ -404,6 +405,19 @@ def create_all_sets(features_list: list[str]) -> List[List[str]]:
     return combos[1:]
 
 
+def extract_april_swe_features(feature_list: List[str]) -> List[str]:
+    """
+    Extract April 1 SWE features from a full list of  features.
+
+    Args:
+        feature_list (List[str]): List of candidate feature names.
+
+    Returns:
+        List[str]: Subset of feature names that include 'SWE_A' (April 1 SWE).
+    """
+    return [item for item in feature_list if 'SWE_A' in item]
+
+
 def init_exhaustive_search_results_dict() -> Dict[str, List[Any]]:
     """
     Initialize a results dictionary to store exhaustive feature search outputs.
@@ -421,19 +435,6 @@ def init_exhaustive_search_results_dict() -> Dict[str, List[Any]]:
         'r2_scores': [],
         'nse_scores': [],
     }
-
-
-def extract_april_swe_features(feature_list: List[str]) -> List[str]:
-    """
-    Extract April 1 SWE features from a full list of  features.
-
-    Args:
-        feature_list (List[str]): List of candidate feature names.
-
-    Returns:
-        List[str]: Subset of feature names that include 'SWE_A' (April 1 SWE).
-    """
-    return [item for item in feature_list if 'SWE_A' in item]
 
 
 def init_swe_only_results_dict() -> Dict[str, List[Any]]:
@@ -529,7 +530,7 @@ def add_scatter_values(ax, xpositions, mins, maxs, invert):
 def reorder(basin, truths, best_preds, swe_preds):
 
     # Original DataFrame
-    data = load_features_target_data()
+    data = load_all_features_target_data()
     basin_data = data[data['Basin'] == basin][['Year', 'Streamflow']].sort_values(by='Year', ascending=True)
 
     # Unordered truths/preds

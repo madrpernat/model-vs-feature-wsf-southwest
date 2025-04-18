@@ -32,8 +32,7 @@ def main():
             - 'rrmse_scores': Relative Root Mean Squared Error score for each feature set
             - 'nse_scores': Nash-Sutcliffe Efficiency score for each feature set
             - 'r2_scores': R² score for each feature set
-        """
-
+    """
     for basin in basins:
         # Initialize results dictionary for the current basin
         results = init_swe_only_results_dict()

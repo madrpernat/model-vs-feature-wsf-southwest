@@ -61,7 +61,6 @@ def get_ffs_iteration_scores(basin: str, regressor: str) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Iteration-level performance scores.
     """
-
     return pd.read_csv(
         os.path.join('..', 'output', 'forward_feature_selection', f'{basin}_{regressor}.csv'),
         index_col=0
