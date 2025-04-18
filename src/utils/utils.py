@@ -1,6 +1,4 @@
-import glob
 import itertools
-import os
 from string import capwords
 from typing import List, Tuple, Dict, Union, Any
 
@@ -440,7 +438,7 @@ def extract_april_swe_features(feature_list: List[str]) -> List[str]:
 
 def init_swe_only_results_dict() -> Dict[str, List[Any]]:
     """
-    Initialize a results dictionary for SWE A-only model evaluation. Same as for `init_exhaustive_search_results_dict()`
+    Initialize a results dictionary for SWE-only model evaluation. Same as for `init_exhaustive_search_results_dict()`.
     """
     return init_exhaustive_search_results_dict()
 
