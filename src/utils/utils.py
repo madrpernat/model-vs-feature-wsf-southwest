@@ -217,8 +217,27 @@ def exhaustive_search(
     return results
 
 
-def set_pipeline_and_param_grid(regressor_name):
+def set_pipeline_and_param_grid(regressor_name: str) -> Tuple[Pipeline, Union[Dict[str, Any], List[Dict[str, Any]]]]:
+    """
+    Set up a scikit-learn pipeline and corresponding hyperparameter grid for the specified regressor.
 
+    Supported regressors:
+        - 'LinearRegression': No hyperparameters to tune
+        - 'PrincipalComponentRegression': Linear regression on PCA-transformed features;
+          tunes the number of PCA components (as a proportion of explained variance)
+        - 'SVR': Support Vector Regression with multiple kernel options (linear, poly, rbf, sigmoid)
+        - 'RandomForestRegressor': Random forest with number of trees, max depth, and max features tuning
+        - 'ExtraTreesRegressor': Extra-trees ensemble with number of trees, max depth, and max features tuning
+
+    Args:
+        regressor_name (str): Name of the regressor to configure.
+
+    Returns:
+        Tuple[Pipeline, Union[Dict[str, Any], List[Dict[str, Any]]]]:
+            - A scikit-learn Pipeline with preprocessing and regressor
+            - A hyperparameter grid for use with GridSearchCV
+        """
+    # Multiple Linear Regression: no hyperparameters to tune
     if regressor_name == 'LinearRegression':
         pipe = Pipeline([
             ('transformer', StandardScaler()),
@@ -226,6 +245,7 @@ def set_pipeline_and_param_grid(regressor_name):
         ])
         param_grid = {}
 
+    # Principal Component Regression: tune number of PCA components (as proportion of variance retained)
     elif regressor_name == 'PrincipalComponentRegression':
         pipe = Pipeline([
             ('transformer', StandardScaler()),
@@ -234,6 +254,7 @@ def set_pipeline_and_param_grid(regressor_name):
         ])
         param_grid = {'pca__n_components': [0.5, 0.6, 0.7, 0.8, 0.9, 0.99]}
 
+    # Support Vector Regression: tune epsilon, C, kernel function, and kernel-specific parameters
     elif regressor_name == 'SVR':
 
         pipe = Pipeline([
@@ -261,6 +282,7 @@ def set_pipeline_and_param_grid(regressor_name):
             }
         ]
 
+    # Random Forest: tune number of trees, depth, and max feature sampling
     elif regressor_name == 'RandomForestRegressor':
         pipe = Pipeline([
             ('transformer', StandardScaler()),
@@ -272,6 +294,7 @@ def set_pipeline_and_param_grid(regressor_name):
             'regressor__max_features': [0.25, 0.5, 0.75, None, 'sqrt']
         }
 
+    # Extremely Randomized Trees: tune number of trees, depth, and max feature sampling
     elif regressor_name == 'ExtraTreesRegressor':
         pipe = Pipeline([
             ('transformer', StandardScaler()),
@@ -287,47 +310,95 @@ def set_pipeline_and_param_grid(regressor_name):
     return pipe, param_grid
 
 
-def calc_nse(y_true, y_pred):
-    mean_observed = np.mean(y_true)
-    numerator = np.sum((y_true - y_pred) ** 2)
-    denominator = np.sum((y_true - mean_observed) ** 2)
-    nse = 1 - (numerator / denominator)
-    return nse
+def calc_nse(
+        y_true: np.array,
+        y_pred: np.array
+) -> float:
+    """
+    Calculate Nash-Sutcliffe Efficiency between true and predicted values.
+
+    Args:
+        y_true (np.array): Observed values.
+        y_pred (np.array): Predicted values.
+
+    Returns:
+        float: NSE
+    """
+    residuals = np.sum((y_true - y_pred) ** 2)
+    variance = np.sum((y_true - np.mean(y_true)) ** 2)
+    return 1 - residuals / variance
 
 
-def calc_rrmse_r2(y_true, y_pred):
-    y_true = list(y_true)
-    length = len(y_true)
-    mean_true = np.mean(y_true)
+def calc_rrmse(
+        y_true: np.array,
+        y_pred: np.array
+) -> float:
+    """
+    Calculate Root Relative Mean Squared Error (RRMSE) and R² between true and predicted values.
 
-    # RRMSE calculation
-    summation0 = 0
-    for q in range(length):
-        summation0 += (y_true[q] - y_pred[q]) ** 2
-    rrmse = (np.sqrt((1 / length) * summation0)) / mean_true
+    RRMSE is the RMSE normalized by the mean of the true values.
 
-    # R-squared calculation
-    mean_pred = np.mean(y_pred)
-    summation1 = 0
-    summation2 = 0
-    summation3 = 0
-    for q in range(length):
-        summation1 += (y_true[q] - mean_true) * (y_pred[q] - mean_pred)
-        summation2 += (y_true[q] - mean_true) ** 2
-        summation3 += (y_pred[q] - mean_pred) ** 2
-    r2 = (summation1 / (np.sqrt(summation2) * np.sqrt(summation3))) ** 2
+    Args:
+        y_true (np.array): Observed values.
+        y_pred (np.array): Predicted values.
 
-    return rrmse, r2
+    Returns:
+        Tuple[float, float]: (RRMSE, R²)
+    """
+    return np.sqrt(np.mean((y_true - y_pred) ** 2)) / np.mean(y_true)
 
 
-def calculate_metrics(y_true, y_pred):
-    rrmse, r2 = calc_rrmse_r2(y_true=y_true, y_pred=y_pred)
+def calc_r2(
+        y_true: np.array,
+        y_pred: np.array
+) -> float:
+    """
+    Calculate Root Relative Mean Squared Error (RRMSE) and R² between true and predicted values.
+
+    RRMSE is the RMSE normalized by the mean of the true values.
+
+    Args:
+        y_true (np.array): Observed values.
+        y_pred (np.array): Predicted values.
+
+    Returns:
+        Tuple[float, float]: (RRMSE, R²)
+    """
+    correlation = np.corrcoef(y_true, y_pred)[0, 1]
+    return float(correlation ** 2)
+
+
+def calculate_metrics(
+        y_true: np.array,
+        y_pred: np.array
+) -> Tuple[float, float, float]:
+    """
+    Calculate RRMSE, NSE, and R² between true and predicted values. Wrapper around `calc_rrmse` and `calc_r2` and
+    `calc_nse` for convenience.
+
+    Args:
+        y_true (np.array): Array of observed values.
+        y_pred (np.array): Array of predicted values.
+
+    Returns:
+        Tuple[float, float, float]: (RRMSE, NSE, R²)
+    """
+    rrmse = calc_rrmse(y_true=y_true, y_pred=y_pred)
+    r2 = calc_r2(y_true=y_true, y_pred=y_pred)
     nse = calc_nse(y_true=y_true, y_pred=y_pred)
-
     return rrmse, nse, r2
 
 
-def create_all_sets(features_list: list[str]):
+def create_all_sets(features_list: list[str]) -> List[List[str]]:
+    """
+    Generate all non-empty subsets of a given list of features.
+
+    Args:
+        features_list (List[str]): List of feature names.
+
+    Returns:
+        List[List[str]]: All non-empty combinations of the list of features.
+    """
     combos = []
     for L in range(len(features_list) + 1):
         for subset in itertools.combinations(features_list, L):
@@ -335,13 +406,12 @@ def create_all_sets(features_list: list[str]):
     return combos[1:]
 
 
-
-
-
-
 def init_exhaustive_search_results_dict() -> Dict[str, List[Any]]:
     """
     Initialize a results dictionary to store exhaustive feature search outputs.
+
+    Returns:
+        Dict[str, List[Any]]: A dictionary with empty lists for each result field.
     """
     return {
         'regressor': [],
@@ -355,11 +425,23 @@ def init_exhaustive_search_results_dict() -> Dict[str, List[Any]]:
     }
 
 
-def extract_april_swe_features(feature_list: List[str]):
+def extract_april_swe_features(feature_list: List[str]) -> List[str]:
+    """
+    Extract April 1 SWE features from a full list of  features.
+
+    Args:
+        feature_list (List[str]): List of candidate feature names.
+
+    Returns:
+        List[str]: Subset of feature names that include 'SWE_A' (April 1 SWE).
+    """
     return [item for item in feature_list if 'SWE_A' in item]
 
 
-def init_swe_only_results_dict():
+def init_swe_only_results_dict() -> Dict[str, List[Any]]:
+    """
+    Initialize a results dictionary for SWE A-only model evaluation. Same as for `init_exhaustive_search_results_dict()`
+    """
     return init_exhaustive_search_results_dict()
 
 
