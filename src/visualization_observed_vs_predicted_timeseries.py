@@ -1,12 +1,12 @@
 import os
 
-import matplotlib.pyplot as plt
 import matplotlib
+import matplotlib.pyplot as plt
 
 from src.utils.utils import timeseries_plot
-from src.configs.basin_names import basins
+from src.configs.basins import basins, yticks
 from src.configs.regressors import regressors
-from src.configs.basin_yticks import yticks
+
 
 matplotlib.use('Qt5Agg')
 plt.rcParams.update({

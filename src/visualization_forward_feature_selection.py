@@ -5,10 +5,10 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
-from src.configs.basin_names import basins
+from src.configs.basins import basins
 from src.configs.features import acronyms, colors
 from src.configs.regressors import regressors
-from src.utils.utils import get_ffs_order, get_ffs_iteration_scores
+from src.utils.data_loaders import  get_ffs_order, get_ffs_iteration_scores
 
 matplotlib.use('Qt5Agg')
 plt.rcParams.update({
@@ -28,13 +28,13 @@ def main():
 
     for regressor in regressors:
 
-        fig, axes = plt.subplots(nrows=n_basins, ncols=1, figsize=(10, 15))
+        fig, axes = plt.subplots(nrows=n_basins, ncols=1, figsize=(7.7, 12.5))
         plt.subplots_adjust(
-            top=0.955,
-            bottom=0.095,
-            left=0.085,
+            top=0.965,
+            bottom=0.085,
+            left=0.160,
             right=0.95,
-            hspace=0.55
+            hspace=1.15
         )
 
         for i, basin in enumerate(basins):
@@ -52,20 +52,20 @@ def main():
             ax.plot(x_positions, rrmse_values, marker='o', linestyle='-', color='black', markersize=8, label='RRMSE')
             ax.set_title(capwords(basin))
             ax.grid(True, linestyle='--', alpha=0.4)
-            ax.set_ylabel('RRMSE')
+            ax.set_ylabel('RRMSE', fontsize=17)
 
             ax.set_xticks(x_positions)
             ax.set_xticklabels([])
 
             ymin, ymax = ax.get_ylim()
-            y_position = ymin - 0.09 * (ymax - ymin)
+            y_position = ymin - 0.11 * (ymax - ymin)
 
             for x_position, selected_feature in zip(x_positions, selected_features):
 
                 feature_name = acronyms[selected_feature]
                 color = colors[selected_feature]
 
-                ax.text(x_position, y_position, feature_name, fontsize=13.5, ha='center', va='center',
+                ax.text(x_position, y_position, feature_name, fontsize=14, ha='center', va='top', rotation=90,
                         bbox=dict(facecolor=color, edgecolor='black', boxstyle='round,pad=0.3'))
 
         plt.savefig(

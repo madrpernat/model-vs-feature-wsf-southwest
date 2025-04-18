@@ -1,11 +1,8 @@
-import glob
 import itertools
-import os
 from string import capwords
 from typing import List, Tuple, Dict, Union, Any
 
 import pandas as pd
-import pickle
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.model_selection import GridSearchCV, KFold
@@ -16,74 +13,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 
 from src.configs.regressors import regressor_titles
-
-
-def load_features_target_data() -> pd.DataFrame:
-    """
-    Load the full dataset containing both features and target variable for all basins
-    """
-    return pd.read_csv(os.path.join('..', 'data', 'full_feature_target_data.csv'))
-
-
-def get_ffs_order(basin: str) -> pd.DataFrame:
-    """
-    Load the feature selection order matrix for a given basin.
-
-    Args:
-        basin (str): Name of the basin.
-
-    Returns:
-        pd.DataFrame: Feature selection order matrix.
-    """
-    return pd.read_csv(
-        os.path.join('..', 'output', 'forward_feature_selection', f'{basin}.csv'),
-        index_col=0
-    )
-
-
-def get_ffs_iteration_scores(basin: str, regressor: str):
-    """
-    Load the per-iteration skill scores from forward feature selection for a given basin and regressor. Each row
-    corresponds to an iteration, and columns include RRMSE, NSE, and R2.
-
-    Args:
-        basin (str): Name of the basin.
-        regressor (str): Name of the regressor.
-
-    Returns:
-        pd.DataFrame: Iteration-level performance scores.
-    """
-
-    return pd.read_csv(
-        os.path.join('..', 'output', 'forward_feature_selection', f'{basin}_{regressor}.csv'),
-        index_col=0
-    )
-
-
-def get_exhaustive_search_results(basin: str):
-    with open(os.path.join('..', 'output', 'exhaustive_feature_search', f'{basin}.pkl'), 'rb') as file:
-        results = pickle.load(file)
-    return pd.DataFrame(results)
-
-
-def get_swe_only_results(basin: str):
-    with open(os.path.join('..', 'output', 'swe_only_models', f'{basin}.pkl'), 'rb') as file:
-        results = pickle.load(file)
-    return pd.DataFrame(results)
-
-
-def get_streamflow_data(basin: str):
-    parent_dir = os.path.join(os.getcwd(), '..', 'data', 'streamflow')
-    parent_dir = os.path.abspath(parent_dir)
-    file_pattern = os.path.join(parent_dir, f'{capwords(basin)}_*.csv')
-    target_file = glob.glob(file_pattern)[0]
-    return pd.read_csv(target_file)
-
-
-def get_years():
-    data = load_features_target_data()
-    years = data['Year'].unique()
-    return sorted(years)
+from src.utils.data_loaders import load_all_features_target_data, get_best_and_fixed_preds, get_years
 
 
 def nested_cross_validation(
@@ -222,22 +152,6 @@ def forward_feature_selection(
     return iteration_scores, order
 
 
-def init_exhaustive_search_results_dict() -> Dict[str, List[Any]]:
-    """
-    Initialize a results dictionary to store exhaustive feature search outputs.
-    """
-    return {
-        'regressor': [],
-        'number_of_features': [],
-        'combo': [],
-        'truths': [],
-        'preds': [],
-        'rrmse_scores': [],
-        'r2_scores': [],
-        'nse_scores': [],
-    }
-
-
 def exhaustive_search(
         basin_data: pd.DataFrame,
         y: pd.Series,
@@ -262,7 +176,7 @@ def exhaustive_search(
 
     Returns:
         Dict[str, List[Any]]: Dictionary containing predictions, truth values, feature names,
-            and skill metrics for each evaluated feature set.
+            and skill metrics for each feature set evaluated within the exhaustive search.
     """
     results = init_exhaustive_search_results_dict()
 
@@ -302,56 +216,27 @@ def exhaustive_search(
     return results
 
 
-def calc_nse(y_true, y_pred):
-    mean_observed = np.mean(y_true)
-    numerator = np.sum((y_true - y_pred) ** 2)
-    denominator = np.sum((y_true - mean_observed) ** 2)
-    nse = 1 - (numerator / denominator)
-    return nse
+def set_pipeline_and_param_grid(regressor_name: str) -> Tuple[Pipeline, Union[Dict[str, Any], List[Dict[str, Any]]]]:
+    """
+    Set up a scikit-learn pipeline and corresponding hyperparameter grid for the specified regressor.
 
+    Supported regressors:
+        - 'LinearRegression': No hyperparameters to tune
+        - 'PrincipalComponentRegression': Linear regression on PCA-transformed features;
+          tunes the number of PCA components (as a proportion of explained variance)
+        - 'SVR': Support Vector Regression with multiple kernel options (linear, poly, rbf, sigmoid)
+        - 'RandomForestRegressor': Random forest with number of trees, max depth, and max features tuning
+        - 'ExtraTreesRegressor': Extra-trees ensemble with number of trees, max depth, and max features tuning
 
-def calc_rrmse_r2(y_true, y_pred):
-    y_true = list(y_true)
-    length = len(y_true)
-    mean_true = np.mean(y_true)
+    Args:
+        regressor_name (str): Name of the regressor to configure.
 
-    # RRMSE calculation
-    summation0 = 0
-    for q in range(length):
-        summation0 += (y_true[q] - y_pred[q]) ** 2
-    rrmse = (np.sqrt((1 / length) * summation0)) / mean_true
-
-    # R-squared calculation
-    mean_pred = np.mean(y_pred)
-    summation1 = 0
-    summation2 = 0
-    summation3 = 0
-    for q in range(length):
-        summation1 += (y_true[q] - mean_true) * (y_pred[q] - mean_pred)
-        summation2 += (y_true[q] - mean_true) ** 2
-        summation3 += (y_pred[q] - mean_pred) ** 2
-    r2 = (summation1 / (np.sqrt(summation2) * np.sqrt(summation3))) ** 2
-
-    return rrmse, r2
-
-
-def calculate_metrics(y_true, y_pred):
-    rrmse, r2 = calc_rrmse_r2(y_true=y_true, y_pred=y_pred)
-    nse = calc_nse(y_true=y_true, y_pred=y_pred)
-
-    return rrmse, nse, r2
-
-
-def create_all_sets(features_list: list[str]):
-    combos = []
-    for L in range(len(features_list) + 1):
-        for subset in itertools.combinations(features_list, L):
-            combos.append(list(subset))
-    return combos[1:]
-
-
-def set_pipeline_and_param_grid(regressor_name):
-
+    Returns:
+        Tuple[Pipeline, Union[Dict[str, Any], List[Dict[str, Any]]]]:
+            - A scikit-learn Pipeline with preprocessing and regressor
+            - A hyperparameter grid for use with GridSearchCV
+        """
+    # Multiple Linear Regression: no hyperparameters to tune
     if regressor_name == 'LinearRegression':
         pipe = Pipeline([
             ('transformer', StandardScaler()),
@@ -359,6 +244,7 @@ def set_pipeline_and_param_grid(regressor_name):
         ])
         param_grid = {}
 
+    # Principal Component Regression: tune number of PCA components (as proportion of variance retained)
     elif regressor_name == 'PrincipalComponentRegression':
         pipe = Pipeline([
             ('transformer', StandardScaler()),
@@ -367,6 +253,7 @@ def set_pipeline_and_param_grid(regressor_name):
         ])
         param_grid = {'pca__n_components': [0.5, 0.6, 0.7, 0.8, 0.9, 0.99]}
 
+    # Support Vector Regression: tune epsilon, C, kernel function, and kernel-specific parameters
     elif regressor_name == 'SVR':
 
         pipe = Pipeline([
@@ -394,6 +281,7 @@ def set_pipeline_and_param_grid(regressor_name):
             }
         ]
 
+    # Random Forest: tune number of trees, depth, and max feature sampling
     elif regressor_name == 'RandomForestRegressor':
         pipe = Pipeline([
             ('transformer', StandardScaler()),
@@ -405,6 +293,7 @@ def set_pipeline_and_param_grid(regressor_name):
             'regressor__max_features': [0.25, 0.5, 0.75, None, 'sqrt']
         }
 
+    # Extremely Randomized Trees: tune number of trees, depth, and max feature sampling
     elif regressor_name == 'ExtraTreesRegressor':
         pipe = Pipeline([
             ('transformer', StandardScaler()),
@@ -420,46 +309,142 @@ def set_pipeline_and_param_grid(regressor_name):
     return pipe, param_grid
 
 
-def get_best_and_fixed_scores(regressors, basin):
+def calc_nse(
+        y_true: np.array,
+        y_pred: np.array
+) -> float:
+    """
+    Calculate Nash-Sutcliffe Efficiency between true and predicted values.
 
-    exhaustive_search_results = get_exhaustive_search_results(basin)
-    swe_only_results = get_swe_only_results(basin)
+    Args:
+        y_true (np.array): Observed values.
+        y_pred (np.array): Predicted values.
 
-    best_rrmse, best_nse = [], []
-    swe_rrmse, swe_nse = [], []
-
-    for regressor in regressors:
-        best_model = exhaustive_search_results[
-            exhaustive_search_results['regressor'] == regressor
-            ].sort_values(by='rrmse_scores', ascending=True).iloc[0]
-
-        best_rrmse.append(best_model['rrmse_scores'])
-        best_nse.append(best_model['nse_scores'])
-        swe_rrmse.append(
-            swe_only_results.at[swe_only_results[swe_only_results['regressor'] == regressor].index[0], 'rrmse_scores'])
-        swe_nse.append(
-            swe_only_results.at[swe_only_results[swe_only_results['regressor'] == regressor].index[0], 'nse_scores'])
-
-    return best_rrmse, best_nse, swe_rrmse, swe_nse
+    Returns:
+        float: NSE
+    """
+    residuals = np.sum((y_true - y_pred) ** 2)
+    variance = np.sum((y_true - np.mean(y_true)) ** 2)
+    return 1 - residuals / variance
 
 
-def get_best_and_fixed_preds(basin, regressor):
+def calc_rrmse(
+        y_true: np.array,
+        y_pred: np.array
+) -> float:
+    """
+    Calculate Root Relative Mean Squared Error (RRMSE) and R² between true and predicted values.
 
-    exhaustive_search_results = get_exhaustive_search_results(basin)
-    swe_only_results = get_swe_only_results(basin)
+    RRMSE is the RMSE normalized by the mean of the true values.
 
-    # Filter to regressor
-    exhaustive_search_results = exhaustive_search_results[exhaustive_search_results['regressor'] == regressor]
-    swe_only_results = swe_only_results[swe_only_results['regressor'] == regressor]
+    Args:
+        y_true (np.array): Observed values.
+        y_pred (np.array): Predicted values.
 
-    best_model = exhaustive_search_results.sort_values(by='rrmse_scores', ascending=True).iloc[0]
-    swe_model = swe_only_results.sort_values(by='rrmse_scores', ascending=True).iloc[0]
+    Returns:
+        Tuple[float, float]: (RRMSE, R²)
+    """
+    return np.sqrt(np.mean((y_true - y_pred) ** 2)) / np.mean(y_true)
 
-    return best_model['truths'], best_model['preds'], swe_model['preds']
+
+def calc_r2(
+        y_true: np.array,
+        y_pred: np.array
+) -> float:
+    """
+    Calculate Root Relative Mean Squared Error (RRMSE) and R² between true and predicted values.
+
+    RRMSE is the RMSE normalized by the mean of the true values.
+
+    Args:
+        y_true (np.array): Observed values.
+        y_pred (np.array): Predicted values.
+
+    Returns:
+        Tuple[float, float]: (RRMSE, R²)
+    """
+    correlation = np.corrcoef(y_true, y_pred)[0, 1]
+    return float(correlation ** 2)
+
+
+def calculate_metrics(
+        y_true: np.array,
+        y_pred: np.array
+) -> Tuple[float, float, float]:
+    """
+    Calculate RRMSE, NSE, and R² between true and predicted values. Wrapper around `calc_rrmse` and `calc_r2` and
+    `calc_nse` for convenience.
+
+    Args:
+        y_true (np.array): Array of observed values.
+        y_pred (np.array): Array of predicted values.
+
+    Returns:
+        Tuple[float, float, float]: (RRMSE, NSE, R²)
+    """
+    rrmse = calc_rrmse(y_true=y_true, y_pred=y_pred)
+    r2 = calc_r2(y_true=y_true, y_pred=y_pred)
+    nse = calc_nse(y_true=y_true, y_pred=y_pred)
+    return rrmse, nse, r2
+
+
+def create_all_sets(features_list: list[str]) -> List[List[str]]:
+    """
+    Generate all non-empty subsets of a given list of features.
+
+    Args:
+        features_list (List[str]): List of feature names.
+
+    Returns:
+        List[List[str]]: All non-empty combinations of the list of features.
+    """
+    combos = []
+    for L in range(len(features_list) + 1):
+        for subset in itertools.combinations(features_list, L):
+            combos.append(list(subset))
+    return combos[1:]
+
+
+def extract_april_swe_features(feature_list: List[str]) -> List[str]:
+    """
+    Extract April 1 SWE features from a full list of  features.
+
+    Args:
+        feature_list (List[str]): List of candidate feature names.
+
+    Returns:
+        List[str]: Subset of feature names that include 'SWE_A' (April 1 SWE).
+    """
+    return [item for item in feature_list if 'SWE_A' in item]
+
+
+def init_exhaustive_search_results_dict() -> Dict[str, List[Any]]:
+    """
+    Initialize a results dictionary to store exhaustive feature search outputs.
+
+    Returns:
+        Dict[str, List[Any]]: A dictionary with empty lists for each result field.
+    """
+    return {
+        'regressor': [],
+        'number_of_features': [],
+        'combo': [],
+        'truths': [],
+        'preds': [],
+        'rrmse_scores': [],
+        'r2_scores': [],
+        'nse_scores': [],
+    }
+
+
+def init_swe_only_results_dict() -> Dict[str, List[Any]]:
+    """
+    Initialize a results dictionary for SWE-only model evaluation. Same as for `init_exhaustive_search_results_dict()`.
+    """
+    return init_exhaustive_search_results_dict()
 
 
 def lolipop_plot(ax, regressors, data_a, data_b, color_a, color_b, label_a, label_b, ylims, yticks, invert_y=False):
-
     xpositions = np.arange(len(regressors))
     xlabels = [regressor_titles[regressor] for regressor in regressors]
 
@@ -488,6 +473,7 @@ def lolipop_plot(ax, regressors, data_a, data_b, color_a, color_b, label_a, labe
         label=label_b,
         zorder=3
     )
+    ax.set_xlim((-0.3, 4.3))
     ax.set_xticks(xpositions)
     ax.set_xticklabels(labels=xlabels, ha='center')
     ax.set_ylim(ylims)
@@ -519,32 +505,33 @@ def add_scatter_values(ax, xpositions, mins, maxs, invert):
     for x, y in zip(xpositions, maxs):
 
         if (ymax - y) / yrange < 0.17:
-            x = x + 0.26
-            yposition = y - 0.02 * yrange if not invert else y + 0.16 * yrange
+            x = x + 0.28
+            yposition = y - 0.02 * yrange if not invert else y + 0.18 * yrange
         else:
             x = x
-            yposition = y + 0.025 * yrange if not invert else y + 0.13 * yrange
-        ax.text(x=x, y=yposition, s=f'{y:.2f}', ha='center', va='bottom', fontsize=12)
+            yposition = y + 0.025 * yrange if not invert else y + 0.15 * yrange
+        ax.text(x=x, y=yposition, s=f'{y:.2f}', ha='center', va='bottom', fontsize=14)
 
     # Min labels
     for x, y in zip(xpositions, mins):
 
-        if (y - ymin) / yrange < 0.05:
-            x = x + 0.26
-            yposition = y + 0.07 * yrange if not invert else y + 0.01 * yrange
+        if (y - ymin) / yrange < 0.09:
+            x = x + 0.28
+            yposition = y + 0.07 * yrange if not invert else y + 0.03 * yrange
         elif (y - ymin) / yrange < 0.15:
-            x = x + 0.26
-            yposition = y + 0.07 * yrange if not invert else y - 0.06 * yrange
+            x = x + 0.28
+            yposition = y + 0.07 * yrange if not invert else y - 0.08 * yrange
         else:
             x = x
-            yposition = y - 0.05 * yrange if not invert else y - 0.11 * yrange
-        ax.text(x=x, y=yposition, s=f'{y:.2f}', ha='center', va='top', fontsize=12)
+            yposition = y - 0.05 * yrange if not invert else y - 0.13 * yrange
+        ax.text(x=x, y=yposition, s=f'{y:.2f}', ha='center', va='top', fontsize=14)
+
 
 
 def reorder(basin, truths, best_preds, swe_preds):
 
     # Original DataFrame
-    data = load_features_target_data()
+    data = load_all_features_target_data()
     basin_data = data[data['Basin'] == basin][['Year', 'Streamflow']].sort_values(by='Year', ascending=True)
 
     # Unordered truths/preds

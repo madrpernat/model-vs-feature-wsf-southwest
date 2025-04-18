@@ -1,70 +1,65 @@
 import os
-from typing import List
 
-import numpy as np
 import pickle
-from sklearn.model_selection import GridSearchCV, KFold
 
-from src.configs.basin_names import basins
-from src.configs.basin_features import basin_features
+from src.configs.basins import basins, basin_features
 from src.configs.regressors import regressors
-from src.utils.utils import calc_nse, calc_rrmse_r2, load_features_target_data, set_pipeline_and_param_grid
-
-
-def extract_april_swe_features(feature_list: List[str]):
-    return [item for item in feature_list if 'SWE_A' in item]
-
-
-def init_swe_only_results_dict():
-    return {
-        'regressor': [], 'number_of_features': [], 'combo': [], 'truths': [], 'preds': [], 'rrmse_scores': [],
-        'r2_scores': [], 'nse_scores': []
-    }
+from src.utils.data_loaders import load_basin_features_target_data
+from src.utils.utils import (calculate_metrics, extract_april_swe_features, init_swe_only_results_dict,
+                             nested_cross_validation, set_pipeline_and_param_grid)
 
 
 def main():
+    """
+    For each basin, train and evaluate each regressor using only April 1 SWE features, and save results.
 
-    data = load_features_target_data()
+    For each basin:
+        - Extract April 1 SWE features
+        - Load the basin's feature–target dataset and subset to SWE A-only features
+        - For each regressor:
+            - Run Nested CV using the SWE A-only features
+            - Append results to a shared results dictionary
 
+    Output:
+        One .pkl file per basin.
+
+        Each .pkl file contains a dictionary with the following keys:
+            - 'regressor': The name of the regressor used
+            - 'number_of_features': The number of features in the evaluated feature set (i.e., # of SWE A features)
+            - 'combo': The list of feature names used in that feature set
+            - 'truths': The observed (true) AMJJ water supply values for each test fold
+            - 'preds': The corresponding predicted AMJJ water supply values for each test fold
+            - 'rrmse_scores': Relative Root Mean Squared Error score for each feature set
+            - 'nse_scores': Nash-Sutcliffe Efficiency score for each feature set
+            - 'r2_scores': R² score for each feature set
+    """
     for basin in basins:
-
+        # Initialize results dictionary for the current basin
         results = init_swe_only_results_dict()
 
-        basin_data = data[data['Basin'] == basin]
+        # Extract only the April 1st SWE features from the current basin's full set of features
         basin_swe_features = extract_april_swe_features(basin_features[basin])
 
-        X = basin_data[basin_swe_features].reset_index(drop=True)
-        y = basin_data['Streamflow'].reset_index(drop=True)
+        # Load feature and target data for the current basin and filter features to only the April 1st SWE features
+        X, y = load_basin_features_target_data(basin=basin)
+        X = X[basin_swe_features]
 
         for regressor in regressors:
-
+            # Initialize pipeline and hyperparameter grid for the current regressor
             pipe, param_grid = set_pipeline_and_param_grid(regressor)
 
-            # Repeated k-fold instance
-            kf = KFold(n_splits=5, shuffle=True, random_state=123)
-            preds, truths = [], []
+            # Run Nested CV to get predictions and truth values
+            truths, preds = nested_cross_validation(
+                pipe=pipe,
+                param_grid=param_grid,
+                X=X,
+                y=y
+            )
 
-            for _, (train_idx, test_idx) in enumerate(kf.split(X)):
-                X_train, X_test = X.loc[train_idx, :], X.loc[test_idx, :]
-                y_train, y_test = y.loc[train_idx], y.loc[test_idx]
+            # Calculate performance metrics for this SWE A-only model
+            rrmse, nse, r2 = calculate_metrics(y_true=truths, y_pred=preds)
 
-                optimized_regressor = GridSearchCV(
-                    estimator=pipe,
-                    param_grid=param_grid,
-                    cv=5,
-                    scoring='neg_root_mean_squared_error',
-                    n_jobs=-1
-                )
-
-                optimized_regressor.fit(X_train, y_train)
-                pred = optimized_regressor.predict(X_test)
-                preds.extend(pred)
-                truths.extend(y_test.to_list())
-
-            # Calculate test metrics
-            nse = calc_nse(y_true=np.array(truths), y_pred=np.array(preds))
-            rrmse, r2 = calc_rrmse_r2(y_true=truths, y_pred=preds)
-
+            # Record results
             results['regressor'].append(regressor)
             results['number_of_features'].append(len(basin_swe_features))
             results['combo'].append(basin_swe_features),
@@ -74,8 +69,9 @@ def main():
             results['r2_scores'].append(r2)
             results['nse_scores'].append(nse)
 
+        # Save results to a single file for the current basin
         with open(
-                file=os.path.join(os.getcwd(), '..', 'output', 'swe_only_models', f'{basin}_svr_updated.pkl'),
+                file=os.path.join(os.getcwd(), '..', 'output', 'swe_only_models', f'{basin}.pkl'),
                 mode='wb'
         ) as pickle_file:
             pickle.dump(results, pickle_file)
