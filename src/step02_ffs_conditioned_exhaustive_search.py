@@ -9,7 +9,32 @@ from src.utils.utils import (exhaustive_search, get_ffs_order, init_exhaustive_s
 
 
 def main():
+    """
+    For each basin, and for each regressor, perform an exhaustive feature search using the top 10 features identified
+    through forward feature selection, and save the results.
 
+    For each basin:
+        - Subset the full feature–target dataset to the current basin
+        - Load the feature selection order matrix from FFS
+        - For each regressor:
+            - Extract the top 10 features selected by FFS (features with rank > 0)
+            - Run an exhaustive search over all non-empty combinations of those features using `exhaustive_search`,
+              which returns predictions, true values, and skill metrics (RRMSE, NSE, R²) for each feature set
+            - Append results to a shared `basin_results` dictionary
+
+    Output:
+        One .pkl file per basin.
+
+        Each .pkl file contains a dictionary with the following keys:
+            - 'regressor': The name of the regressor used
+            - 'number_of_features': The number of features in the evaluated feature set
+            - 'combo': The list of feature names used in that feature set
+            - 'truths': The observed (true) AMJJ water supply values for each test fold
+            - 'preds': The corresponding predicted AMJJ water supply values for each test fold
+            - 'rrmse_scores': Relative Root Mean Squared Error score for each feature set
+            - 'nse_scores': Nash-Sutcliffe Efficiency score for each feature set
+            - 'r2_scores': R² score for each feature set
+    """
     data = load_features_target_data()
 
     for basin in basins:
@@ -22,7 +47,7 @@ def main():
         # Load FFS order matrix
         ffs_order = get_ffs_order(basin)
 
-        # Initialize a shared results dictionary for this basin
+        # Initialize a results dictionary for this basin
         basin_results = init_exhaustive_search_results_dict()
 
         for regressor in regressors:
@@ -45,7 +70,7 @@ def main():
 
         # Save results to output dictionary
         out_path = os.path.join('..', 'output', 'exhaustive_feature_search', f'{basin}.pkl')
-        with open(file=out_path,mode='wb') as pickle_file:
+        with open(file=out_path, mode='wb') as pickle_file:
             pickle.dump(basin_results, pickle_file)
 
 

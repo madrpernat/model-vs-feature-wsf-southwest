@@ -44,7 +44,7 @@ def main():
                 regressor=regressor
             )
 
-            # Save the per-iteration scores during FFS (one file per basin/regressor)
+            # Save the per-iteration scores during FFS (one file per basin-regressor combination)
             iteration_scores.to_csv(
                 path_or_buf=os.path.join('..', 'output', 'forward_feature_selection', f'{basin}_{regressor}.csv')
             )
