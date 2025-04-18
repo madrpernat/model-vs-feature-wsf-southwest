@@ -5,7 +5,6 @@ from string import capwords
 from typing import List, Tuple, Dict, Union, Any
 
 import pandas as pd
-import pickle
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.model_selection import GridSearchCV, KFold
@@ -16,74 +15,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 
 from src.configs.regressors import regressor_titles
-
-
-def load_features_target_data() -> pd.DataFrame:
-    """
-    Load the full dataset containing both features and target variable for all basins
-    """
-    return pd.read_csv(os.path.join('..', 'data', 'full_feature_target_data.csv'))
-
-
-def get_ffs_order(basin: str) -> pd.DataFrame:
-    """
-    Load the feature selection order matrix for a given basin.
-
-    Args:
-        basin (str): Name of the basin.
-
-    Returns:
-        pd.DataFrame: Feature selection order matrix.
-    """
-    return pd.read_csv(
-        os.path.join('..', 'output', 'forward_feature_selection', f'{basin}.csv'),
-        index_col=0
-    )
-
-
-def get_ffs_iteration_scores(basin: str, regressor: str):
-    """
-    Load the per-iteration skill scores from forward feature selection for a given basin and regressor. Each row
-    corresponds to an iteration, and columns include RRMSE, NSE, and R2.
-
-    Args:
-        basin (str): Name of the basin.
-        regressor (str): Name of the regressor.
-
-    Returns:
-        pd.DataFrame: Iteration-level performance scores.
-    """
-
-    return pd.read_csv(
-        os.path.join('..', 'output', 'forward_feature_selection', f'{basin}_{regressor}.csv'),
-        index_col=0
-    )
-
-
-def get_exhaustive_search_results(basin: str):
-    with open(os.path.join('..', 'output', 'exhaustive_feature_search', f'{basin}.pkl'), 'rb') as file:
-        results = pickle.load(file)
-    return pd.DataFrame(results)
-
-
-def get_swe_only_results(basin: str):
-    with open(os.path.join('..', 'output', 'swe_only_models', f'{basin}.pkl'), 'rb') as file:
-        results = pickle.load(file)
-    return pd.DataFrame(results)
-
-
-def get_streamflow_data(basin: str):
-    parent_dir = os.path.join(os.getcwd(), '..', 'data', 'streamflow')
-    parent_dir = os.path.abspath(parent_dir)
-    file_pattern = os.path.join(parent_dir, f'{capwords(basin)}_*.csv')
-    target_file = glob.glob(file_pattern)[0]
-    return pd.read_csv(target_file)
-
-
-def get_years():
-    data = load_features_target_data()
-    years = data['Year'].unique()
-    return sorted(years)
 
 
 def nested_cross_validation(
@@ -222,22 +153,6 @@ def forward_feature_selection(
     return iteration_scores, order
 
 
-def init_exhaustive_search_results_dict() -> Dict[str, List[Any]]:
-    """
-    Initialize a results dictionary to store exhaustive feature search outputs.
-    """
-    return {
-        'regressor': [],
-        'number_of_features': [],
-        'combo': [],
-        'truths': [],
-        'preds': [],
-        'rrmse_scores': [],
-        'r2_scores': [],
-        'nse_scores': [],
-    }
-
-
 def exhaustive_search(
         basin_data: pd.DataFrame,
         y: pd.Series,
@@ -262,7 +177,7 @@ def exhaustive_search(
 
     Returns:
         Dict[str, List[Any]]: Dictionary containing predictions, truth values, feature names,
-            and skill metrics for each evaluated feature set.
+            and skill metrics for each feature set evaluated within the exhaustive search.
     """
     results = init_exhaustive_search_results_dict()
 
@@ -300,54 +215,6 @@ def exhaustive_search(
         results['r2_scores'].append(r2)
 
     return results
-
-
-def calc_nse(y_true, y_pred):
-    mean_observed = np.mean(y_true)
-    numerator = np.sum((y_true - y_pred) ** 2)
-    denominator = np.sum((y_true - mean_observed) ** 2)
-    nse = 1 - (numerator / denominator)
-    return nse
-
-
-def calc_rrmse_r2(y_true, y_pred):
-    y_true = list(y_true)
-    length = len(y_true)
-    mean_true = np.mean(y_true)
-
-    # RRMSE calculation
-    summation0 = 0
-    for q in range(length):
-        summation0 += (y_true[q] - y_pred[q]) ** 2
-    rrmse = (np.sqrt((1 / length) * summation0)) / mean_true
-
-    # R-squared calculation
-    mean_pred = np.mean(y_pred)
-    summation1 = 0
-    summation2 = 0
-    summation3 = 0
-    for q in range(length):
-        summation1 += (y_true[q] - mean_true) * (y_pred[q] - mean_pred)
-        summation2 += (y_true[q] - mean_true) ** 2
-        summation3 += (y_pred[q] - mean_pred) ** 2
-    r2 = (summation1 / (np.sqrt(summation2) * np.sqrt(summation3))) ** 2
-
-    return rrmse, r2
-
-
-def calculate_metrics(y_true, y_pred):
-    rrmse, r2 = calc_rrmse_r2(y_true=y_true, y_pred=y_pred)
-    nse = calc_nse(y_true=y_true, y_pred=y_pred)
-
-    return rrmse, nse, r2
-
-
-def create_all_sets(features_list: list[str]):
-    combos = []
-    for L in range(len(features_list) + 1):
-        for subset in itertools.combinations(features_list, L):
-            combos.append(list(subset))
-    return combos[1:]
 
 
 def set_pipeline_and_param_grid(regressor_name):
@@ -420,42 +287,80 @@ def set_pipeline_and_param_grid(regressor_name):
     return pipe, param_grid
 
 
-def get_best_and_fixed_scores(regressors, basin):
-
-    exhaustive_search_results = get_exhaustive_search_results(basin)
-    swe_only_results = get_swe_only_results(basin)
-
-    best_rrmse, best_nse = [], []
-    swe_rrmse, swe_nse = [], []
-
-    for regressor in regressors:
-        best_model = exhaustive_search_results[
-            exhaustive_search_results['regressor'] == regressor
-            ].sort_values(by='rrmse_scores', ascending=True).iloc[0]
-
-        best_rrmse.append(best_model['rrmse_scores'])
-        best_nse.append(best_model['nse_scores'])
-        swe_rrmse.append(
-            swe_only_results.at[swe_only_results[swe_only_results['regressor'] == regressor].index[0], 'rrmse_scores'])
-        swe_nse.append(
-            swe_only_results.at[swe_only_results[swe_only_results['regressor'] == regressor].index[0], 'nse_scores'])
-
-    return best_rrmse, best_nse, swe_rrmse, swe_nse
+def calc_nse(y_true, y_pred):
+    mean_observed = np.mean(y_true)
+    numerator = np.sum((y_true - y_pred) ** 2)
+    denominator = np.sum((y_true - mean_observed) ** 2)
+    nse = 1 - (numerator / denominator)
+    return nse
 
 
-def get_best_and_fixed_preds(basin, regressor):
+def calc_rrmse_r2(y_true, y_pred):
+    y_true = list(y_true)
+    length = len(y_true)
+    mean_true = np.mean(y_true)
 
-    exhaustive_search_results = get_exhaustive_search_results(basin)
-    swe_only_results = get_swe_only_results(basin)
+    # RRMSE calculation
+    summation0 = 0
+    for q in range(length):
+        summation0 += (y_true[q] - y_pred[q]) ** 2
+    rrmse = (np.sqrt((1 / length) * summation0)) / mean_true
 
-    # Filter to regressor
-    exhaustive_search_results = exhaustive_search_results[exhaustive_search_results['regressor'] == regressor]
-    swe_only_results = swe_only_results[swe_only_results['regressor'] == regressor]
+    # R-squared calculation
+    mean_pred = np.mean(y_pred)
+    summation1 = 0
+    summation2 = 0
+    summation3 = 0
+    for q in range(length):
+        summation1 += (y_true[q] - mean_true) * (y_pred[q] - mean_pred)
+        summation2 += (y_true[q] - mean_true) ** 2
+        summation3 += (y_pred[q] - mean_pred) ** 2
+    r2 = (summation1 / (np.sqrt(summation2) * np.sqrt(summation3))) ** 2
 
-    best_model = exhaustive_search_results.sort_values(by='rrmse_scores', ascending=True).iloc[0]
-    swe_model = swe_only_results.sort_values(by='rrmse_scores', ascending=True).iloc[0]
+    return rrmse, r2
 
-    return best_model['truths'], best_model['preds'], swe_model['preds']
+
+def calculate_metrics(y_true, y_pred):
+    rrmse, r2 = calc_rrmse_r2(y_true=y_true, y_pred=y_pred)
+    nse = calc_nse(y_true=y_true, y_pred=y_pred)
+
+    return rrmse, nse, r2
+
+
+def create_all_sets(features_list: list[str]):
+    combos = []
+    for L in range(len(features_list) + 1):
+        for subset in itertools.combinations(features_list, L):
+            combos.append(list(subset))
+    return combos[1:]
+
+
+
+
+
+
+def init_exhaustive_search_results_dict() -> Dict[str, List[Any]]:
+    """
+    Initialize a results dictionary to store exhaustive feature search outputs.
+    """
+    return {
+        'regressor': [],
+        'number_of_features': [],
+        'combo': [],
+        'truths': [],
+        'preds': [],
+        'rrmse_scores': [],
+        'r2_scores': [],
+        'nse_scores': [],
+    }
+
+
+def extract_april_swe_features(feature_list: List[str]):
+    return [item for item in feature_list if 'SWE_A' in item]
+
+
+def init_swe_only_results_dict():
+    return init_exhaustive_search_results_dict()
 
 
 def lolipop_plot(ax, regressors, data_a, data_b, color_a, color_b, label_a, label_b, ylims, yticks, invert_y=False):

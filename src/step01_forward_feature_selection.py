@@ -4,7 +4,8 @@ import pandas as pd
 
 from src.configs.basins import basins, basin_features
 from src.configs.regressors import regressors
-from src.utils.utils import forward_feature_selection, load_features_target_data
+from src.utils.data_loaders import load_basin_features_target_data
+from src.utils.utils import forward_feature_selection
 
 
 def main():
@@ -12,7 +13,7 @@ def main():
     Run Forward Feature Selection (FFS) across all basins and model types.
 
     For each basin:
-        - Subset the full features/target dataset to that basin
+        - Load the basin's feature–target dataset and the basin's candidate feature set
         - Run FFS for each regressor
             - Track model performance (RRMSE, NSE) at each iteration
             - Track the order in which features are selected
@@ -22,15 +23,12 @@ def main():
         - One CSV per basin showing the order in which each feature was selected for each regressor
     """
 
-    data = load_features_target_data()
-
     for basin in basins:
         print(f'\n=== Processing Basin: {basin} ===')
 
         # Subset data to current basin
-        basin_data = data[data['Basin'] == basin].reset_index(drop=True)
-        y = basin_data['Streamflow'].reset_index(drop=True)
         feature_set = basin_features[basin]
+        X, y = load_basin_features_target_data(basin=basin)
 
         # Initialize a matrix to track feature selection order per regressor
         order_matrix = pd.DataFrame(0, index=feature_set, columns=regressors)
@@ -38,7 +36,7 @@ def main():
         for regressor in regressors:
             # Perform forward feature selection
             iteration_scores, order = forward_feature_selection(
-                basin_data=basin_data,
+                basin_data=X,
                 y=y,
                 feature_set=feature_set,
                 regressor=regressor

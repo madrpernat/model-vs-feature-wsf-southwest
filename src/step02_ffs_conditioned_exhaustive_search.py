@@ -4,8 +4,8 @@ import pickle
 
 from src.configs.basins import basins
 from src.configs.regressors import regressors
-from src.utils.utils import (exhaustive_search, get_ffs_order, init_exhaustive_search_results_dict,
-                             load_features_target_data)
+from src.utils.utils import exhaustive_search, init_exhaustive_search_results_dict
+from src.utils.data_loaders import get_ffs_order, load_basin_features_target_data
 
 
 def main():
@@ -14,7 +14,7 @@ def main():
     through forward feature selection, and save the results.
 
     For each basin:
-        - Subset the full feature–target dataset to the current basin
+        - Load the basin's feature–target dataset
         - Load the feature selection order matrix from FFS
         - For each regressor:
             - Extract the top 10 features selected by FFS (features with rank > 0)
@@ -35,14 +35,12 @@ def main():
             - 'nse_scores': Nash-Sutcliffe Efficiency score for each feature set
             - 'r2_scores': R² score for each feature set
     """
-    data = load_features_target_data()
 
     for basin in basins:
         print(f'\n=== Processing Basin: {basin} ===')
 
-        # Subset data to the current basin
-        basin_data = data[data['Basin'] == basin].reset_index(drop=True)
-        y = basin_data['Streamflow'].reset_index(drop=True)
+        # Load feature and target data
+        X, y = load_basin_features_target_data(basin=basin)
 
         # Load FFS order matrix
         ffs_order = get_ffs_order(basin)
@@ -58,7 +56,7 @@ def main():
 
             # Run exhaustive search over all non-empty sets of top features
             regressor_results = exhaustive_search(
-                basin_data=basin_data,
+                basin_data=X,
                 y=y,
                 top_features=top_features,
                 regressor=regressor
